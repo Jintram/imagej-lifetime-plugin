@@ -1,32 +1,83 @@
 //Macro to display lifetime images from Leica Stellaris Falcon
+//
 //This requires a saved raw output image with two channels, intensity+lifetime, with lifetimes scaled between 0-10 ns set at the Stellaris microscope
+// 
+// version5d 31-10-2024 Some additional comments by Martijn
 // version5 10-1-2024 Corrected small bug for non square input  figures and included better scaling of text
 // version4 10-3-2023 Added processing of multi-channel/timelapse raw FLIM images
 // version3 25-2-2023 Added processing of entire directory and average image statistics logfile
 // version2 24-2-2023 Added optional thresholding, scale bar and image data info
-//Created 23-2-2023 Dorus Gadella
+// Created 23-2-2023 Dorus Gadella
 
+// Short description of this script:
+// (added by Martijn)
+// 
+// This script will process a stack of an intensity and lifetime image, where the lifetime image contains the
+// mean arrival time in each pixel.
+//
+// The script is aimed towards processing data that contains objects of special interest that cover continuous
+// areas, such as cells. The script will (auto-)threshold the intensity image to determine a mask for these objects.
+// It will first apply gamma and median filters to improve image quality, before thresholding.
+// 
+// To prevent the script from applying this first step, e.g. to inspect histogram of the entire image, settings 
+// can be adjusted to achieve this. Set min and max tau to the full range of the lifetime input image, 
+// turn of automatic thresholding, and set the min and max intensity to the full range of the intensity image.
+// Set gamma to 1 and median filter size to 0. These settings can also be used to turn parts of the script off.
+//
+// The script will then apply the same median filter to the lifetime image, and apply the mask to the lifetime image.
+// The lifetime image will be displayed with a color lookup table (LUT) that is determined by the min and max tau values.
+// The script will also display a scale bar, and optionally a histogram of the lifetime values.
+//
+//
+// Note: the input is expected to be a 16-bit image, and so to scale those values to the expected 0-10 ns range,
+// the script will rescale values in the lifetime image by dividing through 6553.5 (=(2^16-1)/10). 
 
 Dialog.create("Input for Lifetime Display");
 
+// Some notes about the input options
+// 
+// Tau for display (taumin, taumax) will determine range of LUT, and **also determine the range from which the average value is calculated**.
+// Only if automatic treshold determination is turned of, will custom range (default 50-250) be used.
+// Gamma and median filters will be applied to the intensity image before tresholding.
+// The same median filter will also be applied to the lifetime image.
+
+
 Dialog.addChoice("What to process ",newArray("Process single file","Process entire directory","Process current image"),"Process single file");
+// will be saved to choice_open
 Dialog.addNumber("Minimal Tau for display (ns)  :", 0);
+// will be saved to taumin
 Dialog.addNumber("Maximal Tau for display (ns)  :", 8);
+// will be saved to taumax
 Dialog.addCheckbox("Automatic determination of Intensity threshold", true);
+// will be saved to automax
 Dialog.addNumber("Minimum image intensity for lifetime statistics/display:", 50);
+// will be saved to imin
 Dialog.addNumber("Maximum image intensity for lifetime statistics/display:", 250);
+// will be saved to imax
 Dialog.addCheckbox("Zero lifetime image data outside intensity threshold", true);
+// will be saved to zero
 Dialog.addNumber("Gamma_for_Intensity            :", 0.7);
+// will be saved to gamma
 Dialog.addNumber("Median filter size to smooth lifetime image (type 0 to not smooth):", 3);
+// will be saved to mediansize
 Dialog.addChoice("Colortable for Lifetime Images:",newArray("Fire","Grays","Ice","Rainbow RGB","Gyr_centre","Red Hot", "Royal","16_colors","Green Fire Blue", "Phase", "mpl-plasma"),"Fire");
+// will be saved to colortable
 Dialog.addCheckbox("Print scale bar", true);
+// will be saved to scale_yes
 Dialog.addNumber("If yes for scalebar length in  µm           :", 10);
+// will be saved to bar_size
 Dialog.addCheckbox("Add lifetime histograms", true);
+// will be saved to his_yes
 Dialog.addChoice("Save stack or 2D montage",newArray("Stack","Montage"),"Montage");
+// will be saved to saveoption
 Dialog.addCheckbox("Write logfile with statistics:", true);
+// will be saved to log_choice
 Dialog.addString("Output extension of filename", "_ij.tif");
+// will be saved to extension
 
 Dialog.show();
+
+// process the above user input
 choice_open= Dialog.getChoice();
 taumin = Dialog.getNumber();
 taumax = Dialog.getNumber();
@@ -158,7 +209,7 @@ nnn=floor(taumax-taumin)+1;
 if (nnn<=2) nnn=2*floor(taumax-taumin)+1;
 run(colortable);
 if (y<x) {
-	hs=y*2/3;
+	hs=y*2/3; // hs is a reference for the size of the scale bar and the histogram 
 } else {
 	hs=x*2/3;
 }
@@ -228,7 +279,7 @@ if(his_yes==true){
 	} else {
 		hs=x*2/3;
 	}
-	hs=round(hs);
+	hs=round(hs); // hs is smalles image dimension times 2/3
 	getHistogram(values,histau,hs,taumin,taumax);
 	histau[0]=0;
 	histau[hs-1]=0;
@@ -241,8 +292,9 @@ if(his_yes==true){
 		x2sum=x2sum+x2s;
 		if(hismax<histau[i]) hismax=histau[i];
 	}
-		tau_mean=xsum/nn;
-		tau_sd=sqrt((x2sum-xsum*xsum/nn)/(nn-1));
+		tau_mean=xsum/nn; // calculated from the pdf of the histogram (within taumin-taumax limits)
+		tau_sd=sqrt((x2sum-xsum*xsum/nn)/(nn-1)); // idem
+        
 //print(tau_mean, tau_sd,x2sum,xsum, nn);
 
 }
